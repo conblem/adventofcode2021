@@ -8,6 +8,7 @@ const FORWARD: &str = "forward";
 const DOWN: &str = "down";
 const UP: &str = "up";
 
+#[derive(Clone, Copy)]
 enum CommandType {
     Forward,
     Down,
@@ -27,6 +28,7 @@ impl FromStr for CommandType {
     }
 }
 
+#[derive(Clone, Copy)]
 struct Command {
     command_type: CommandType,
     distance: u64,
@@ -84,7 +86,7 @@ fn main() -> Result<(), Error> {
         .into_iter()
         .filter(|line| !line.is_empty())
         .map(|input| input.parse())
-        .collect::<Result<Vec<Command>, Error>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut coordinates = Coordinate::default();
     for command in commands {
