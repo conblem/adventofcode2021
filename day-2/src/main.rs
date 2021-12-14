@@ -1,8 +1,6 @@
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
 use std::str::FromStr;
 
-type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+use common::{Error, InputFileReader};
 
 const FORWARD: &str = "forward";
 const DOWN: &str = "down";
@@ -74,30 +72,65 @@ impl Coordinate {
     }
 }
 
-fn main() -> Result<(), Error> {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let input = File::open(format!("{}/part-one.txt", manifest_dir))?;
+#[derive(Default)]
+struct Aim {
+    coordinates: Coordinate,
+    aim: u64,
+}
 
-    let lines = BufReader::new(input)
-        .lines()
-        .collect::<io::Result<Vec<String>>>()?;
+impl Aim {
+    fn command(&mut self, command: Command) {
+        let distance = command.distance;
+        match command.command_type {
+            CommandType::Down => self.aim += distance,
+            CommandType::Up => self.aim -= distance,
+            CommandType::Forward => {
+                self.coordinates.command(command);
+                let down = Command {
+                    command_type: CommandType::Down,
+                    distance: self.aim * distance,
+                };
+                self.coordinates.command(down);
+            }
+        }
+    }
 
-    let commands = lines
-        .into_iter()
-        .filter(|line| !line.is_empty())
-        .map(|input| input.parse())
-        .collect::<Result<Vec<_>, _>>()?;
+    fn multiply(&self) -> u64 {
+        self.coordinates.multiply()
+    }
+}
+
+fn part_one(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let commands = input_file_reader.read("part-one.txt")?;
 
     let mut coordinates = Coordinate::default();
     for command in commands {
         coordinates.command(command);
     }
 
-    let res_one = coordinates.multiply();
+    Ok(coordinates.multiply())
+}
+
+fn part_two(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let commands = input_file_reader.read("part-two.txt")?;
+
+    let mut aim = Aim::default();
+    for command in commands {
+        aim.command(command);
+    }
+
+    Ok(aim.multiply())
+}
+
+fn main() -> Result<(), Error> {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let input_file_reader = InputFileReader::new(manifest_dir);
+
+    let res_one = part_one(&input_file_reader)?;
     println!("Part One result {}", res_one);
 
-    //let res_two = part_two()?;
-    //println!("Part Two result {}", res_two);
+    let res_two = part_two(&input_file_reader)?;
+    println!("Part Two result {}", res_two);
 
     Ok(())
 }

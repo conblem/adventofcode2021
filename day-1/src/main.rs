@@ -1,25 +1,4 @@
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-
-type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-fn parse_number_file(filename: &str) -> Result<Vec<u64>, Error> {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-
-    let input = File::open(format!("{}/{}", manifest_dir, filename))?;
-
-    let lines = BufReader::new(input)
-        .lines()
-        .collect::<io::Result<Vec<String>>>()?;
-
-    let numbers = lines
-        .into_iter()
-        .filter(|line| !line.is_empty())
-        .map(|line| line.parse())
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(numbers)
-}
+use common::{Error, InputFileReader};
 
 fn count_larger_than_previous(numbers: Vec<u64>) -> u64 {
     numbers
@@ -30,14 +9,14 @@ fn count_larger_than_previous(numbers: Vec<u64>) -> u64 {
         .sum()
 }
 
-fn part_one() -> Result<u64, Error> {
-    let numbers = parse_number_file("part-one.txt")?;
+fn part_one(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let numbers = input_file_reader.read("part-one.txt")?;
 
     Ok(count_larger_than_previous(numbers))
 }
 
-fn part_two() -> Result<u64, Error> {
-    let numbers = parse_number_file("part-two.txt")?;
+fn part_two(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let numbers = input_file_reader.read("part-two.txt")?;
 
     let sliding_numbers = numbers
         .iter()
@@ -50,10 +29,13 @@ fn part_two() -> Result<u64, Error> {
 }
 
 fn main() -> Result<(), Error> {
-    let res_one = part_one()?;
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let input_file_reader = InputFileReader::new(manifest_dir);
+
+    let res_one = part_one(&input_file_reader)?;
     println!("Part One result {}", res_one);
 
-    let res_two = part_two()?;
+    let res_two = part_two(&input_file_reader)?;
     println!("Part Two result {}", res_two);
 
     Ok(())
