@@ -1,8 +1,8 @@
-use std::str::FromStr;
-use std::fs::File;
-use std::io::{BufReader, BufRead};
 use std::error::Error as StdError;
 use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::str::FromStr;
 
 pub type Error = Box<dyn StdError + Send + Sync + 'static>;
 
@@ -12,9 +12,7 @@ pub struct InputFileReader {
 
 impl InputFileReader {
     pub fn new(manifest_dir: &'static str) -> Self {
-        Self {
-            manifest_dir
-        }
+        Self { manifest_dir }
     }
 
     pub fn read<T, F>(&self, filename: F) -> Result<Vec<T>, Error>

@@ -82,8 +82,10 @@ impl Aim {
     fn command(&mut self, command: Command) {
         let distance = command.distance;
         match command.command_type {
+            // down and up just modify the aim
             CommandType::Down => self.aim += distance,
             CommandType::Up => self.aim -= distance,
+            // forward has a new behaviour on top of the normal coordinate behaviour
             CommandType::Forward => {
                 self.coordinates.command(command);
                 let down = Command {
