@@ -4,8 +4,28 @@ use std::str::FromStr;
 use common::{Error, InputFileReader};
 
 // this could definitely be replaced with a cargo dependency but where's the fun in that?
+#[derive(Clone, Copy)]
 struct BitArray<const N: usize> {
     inner: [bool; N],
+}
+
+impl <const N: usize> BitArray<N> {
+    fn reverse(&mut self) {
+        self.inner.reverse();
+    }
+}
+
+// this implementation is only generic for fun and should probably just be implemented for i64 or something alike
+impl <T, const N: usize> From<[T; N]> for BitArray<N> where T: Default + Ord {
+    fn from(input: [T; N]) -> Self {
+        let mut res = Self { inner: [false; N] };
+        for i in 0..N - 1 {
+            // if input[i] is bigger than zero we count it as true
+            // this works for signed and unsigned numbers
+            res.inner[i] = input[i] > T::default();
+        }
+        res
+    }
 }
 
 impl<const N: usize> TryFrom<BitArray<N>> for u64 {
@@ -54,6 +74,15 @@ impl<const N: usize> FromStr for BitArray<N> {
 
 fn part_one(input_file_reader: &InputFileReader) -> Result<(), Error> {
     let bits: Vec<BitArray<12>> = input_file_reader.read("part-one.txt")?;
+
+    let res = bits.into_iter().fold([0; 12], |mut acc, curr| {
+        for i in 0..11 {
+            acc[i] += curr.inner as i64;
+        }
+        acc
+    });
+
+
 
     Ok(())
 }
