@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::ops::Index;
 use std::str::FromStr;
 
 use common::{Error, InputFileReader};
@@ -9,17 +10,40 @@ struct BitArray<const N: usize> {
     inner: [bool; N],
 }
 
-impl <const N: usize> BitArray<N> {
-    fn reverse(&mut self) {
-        self.inner.reverse();
+impl<const N: usize> BitArray<N> {
+    fn try_multiply(self, other: BitArray<N>) -> Result<u64, Error> {
+        let this = u64::try_from(self)?;
+        let other = u64::try_from(other)?;
+
+        Ok(this * other)
+    }
+
+    fn invert(&self) -> Self {
+        let mut reversed = self.clone();
+        for i in 0..N {
+            reversed.inner[i] = !reversed.inner[i];
+        }
+        reversed
     }
 }
 
-// this implementation is only generic for fun and should probably just be implemented for i64 or something alike
-impl <T, const N: usize> From<[T; N]> for BitArray<N> where T: Default + Ord {
+impl<const N: usize> Index<usize> for BitArray<N> {
+    type Output = bool;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.inner[index]
+    }
+}
+
+// this implementation is only generic for fun
+// should probably just be implemented for i64 or something alike
+impl<T, const N: usize> From<[T; N]> for BitArray<N>
+where
+    T: Default + Ord,
+{
     fn from(input: [T; N]) -> Self {
         let mut res = Self { inner: [false; N] };
-        for i in 0..N - 1 {
+        for i in 0..N {
             // if input[i] is bigger than zero we count it as true
             // this works for signed and unsigned numbers
             res.inner[i] = input[i] > T::default();
@@ -72,19 +96,24 @@ impl<const N: usize> FromStr for BitArray<N> {
     }
 }
 
-fn part_one(input_file_reader: &InputFileReader) -> Result<(), Error> {
-    let bits: Vec<BitArray<12>> = input_file_reader.read("part-one.txt")?;
+const PART_ONE_LENGTH: usize = 12;
 
-    let res = bits.into_iter().fold([0; 12], |mut acc, curr| {
-        for i in 0..11 {
-            acc[i] += curr.inner as i64;
-        }
-        acc
-    });
+fn part_one(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let bits: Vec<BitArray<PART_ONE_LENGTH>> = input_file_reader.read("part-one.txt")?;
 
+    let res = bits
+        .into_iter()
+        .fold([0; PART_ONE_LENGTH], |mut acc, curr| {
+            for i in 0..acc.len() {
+                acc[i] += if curr[i] { 1 } else { -1 };
+            }
+            acc
+        });
 
+    let gamma = BitArray::from(res);
+    let epsilon = gamma.invert();
 
-    Ok(())
+    gamma.try_multiply(epsilon)
 }
 
 fn main() -> Result<(), Error> {
@@ -92,7 +121,7 @@ fn main() -> Result<(), Error> {
     let input_file_reader = InputFileReader::new(manifest_dir);
 
     let res_one = part_one(&input_file_reader)?;
-    println!("Part One result {:?}", res_one);
+    println!("Part One result {}", res_one);
 
     /*let res_two = part_two(&input_file_reader)?;
     println!("Part Two result {}", res_two);*/
