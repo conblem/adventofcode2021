@@ -18,6 +18,7 @@ impl<const N: usize> BitArray<N> {
         Ok(this * other)
     }
 
+    // bitwise invert
     fn invert(&self) -> Self {
         let mut reversed = self.clone();
         for i in 0..N {
@@ -59,7 +60,7 @@ impl<const N: usize> TryFrom<BitArray<N>> for u64 {
         let mut res: u64 = 0;
         for bit in value.inner.into_iter() {
             let temp = res
-                .checked_shl(1)
+                .checked_mul(2)
                 .and_then(|res| res.checked_add(bit as u64));
 
             match temp {
@@ -116,6 +117,27 @@ fn part_one(input_file_reader: &InputFileReader) -> Result<u64, Error> {
     gamma.try_multiply(epsilon)
 }
 
+const PART_TWO_LENGTH: usize = 5;
+
+fn part_two(input_file_reader: &InputFileReader) -> Result<(), Error> {
+    let mut bits: Vec<BitArray<PART_TWO_LENGTH>> = input_file_reader.read("test.txt")?;
+
+    for i in 0..PART_TWO_LENGTH {
+        let criteria = bits
+            .iter()
+            .fold(0, |acc, curr| acc + if curr[i] { 1 } else { -1 });
+
+        let criteria = criteria >= 0;
+
+        bits.retain(|bit| bit[i] == criteria);
+        if bits.len() == 1 {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Error> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let input_file_reader = InputFileReader::new(manifest_dir);
@@ -123,8 +145,8 @@ fn main() -> Result<(), Error> {
     let res_one = part_one(&input_file_reader)?;
     println!("Part One result {}", res_one);
 
-    /*let res_two = part_two(&input_file_reader)?;
-    println!("Part Two result {}", res_two);*/
+    let res_two = part_two(&input_file_reader)?;
+    /*println!("Part Two result {}", res_two);*/
 
     Ok(())
 }
@@ -146,5 +168,13 @@ mod tests {
         assert_eq!(number, 22);
 
         Ok(())
+    }
+
+    #[test]
+    fn bit_array_overflow_works() {
+        // 128 bit max number
+        let bit_array = BitArray::from([1; 128]);
+        let overflow_err = u64::try_from(bit_array);
+        assert!(overflow_err.is_err());
     }
 }
