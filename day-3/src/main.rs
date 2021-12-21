@@ -1,141 +1,162 @@
-use std::convert::TryFrom;
-use std::ops::Index;
+use std::ops::{Index, Mul, Not};
 use std::str::FromStr;
 
 use common::{Error, InputFileReader};
 
-// this could definitely be replaced with a cargo dependency but where's the fun in that?
+const WIDTH: usize = 12;
+
+// creates a bit pattern of 0..011111;
+// to get this pattern we take 1 and shift it to the right by the WIDTH
+// this results in a pattern of 0..0100000
+// the zeros to the right correspond to the WIDTH
+// now if we subtract 1 we get 0..0011111
+// the ones to the right correspond to the WIDTH
+const BIT_MASK: u64 = (1 << WIDTH) - 1;
+
 #[derive(Clone, Copy)]
-struct BitArray<const N: usize> {
-    inner: [bool; N],
-}
+struct BinaryU64(u64);
 
-impl<const N: usize> BitArray<N> {
-    fn try_multiply(self, other: BitArray<N>) -> Result<u64, Error> {
-        let this = u64::try_from(self)?;
-        let other = u64::try_from(other)?;
+impl Mul for BinaryU64 {
+    type Output = u64;
 
-        Ok(this * other)
-    }
-
-    // bitwise invert
-    fn invert(&self) -> Self {
-        let mut reversed = self.clone();
-        for i in 0..N {
-            reversed.inner[i] = !reversed.inner[i];
-        }
-        reversed
+    fn mul(self, rhs: BinaryU64) -> Self::Output {
+        self.0 * rhs.0
     }
 }
 
-impl<const N: usize> Index<usize> for BitArray<N> {
+impl Not for BinaryU64 {
+    type Output = BinaryU64;
+
+    fn not(self) -> Self::Output {
+        // the and pattern should be 0..011111
+        // where the amount of 1's is the WIDTH
+        // using and we mask num and keep zeros left of the width
+        BinaryU64(!self.0 & BIT_MASK)
+    }
+}
+
+impl Index<usize> for BinaryU64 {
     type Output = bool;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.inner[index]
+        if index > 63 {
+            panic!("index out of bounds");
+        }
+
+        let res = self.0 & (1 << index) != 0;
+
+        // creates a static reference to a bool
+        if res {
+            &true
+        } else {
+            &false
+        }
+    }
+}
+
+impl From<BinaryU64> for u64 {
+    fn from(input: BinaryU64) -> Self {
+        input.0
+    }
+}
+
+impl FromStr for BinaryU64 {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // 2 is the radix for binary numbers
+        let res = u64::from_str_radix(s, 2)?;
+        Ok(Self(res))
     }
 }
 
 // this implementation is only generic for fun
 // should probably just be implemented for i64 or something alike
-impl<T, const N: usize> From<[T; N]> for BitArray<N>
+impl<T> From<T> for BinaryU64
 where
-    T: Default + Ord,
+    T: IntoIterator,
+    T::Item: Copy + Default + Ord,
 {
-    fn from(input: [T; N]) -> Self {
-        let mut res = Self { inner: [false; N] };
-        for i in 0..N {
-            // if input[i] is bigger than zero we count it as true
-            // this works for signed and unsigned numbers
-            res.inner[i] = input[i] > T::default();
+    fn from(input: T) -> Self {
+        let zero = T::Item::default();
+
+        let mut res = 0;
+
+        for value in input {
+            let bit = value > zero;
+
+            res *= 2;
+            res += bit as u64;
         }
-        res
+
+        Self(res)
     }
 }
-
-impl<const N: usize> TryFrom<BitArray<N>> for u64 {
-    type Error = Error;
-
-    fn try_from(value: BitArray<N>) -> Result<Self, Self::Error> {
-        let mut res: u64 = 0;
-        for bit in value.inner.into_iter() {
-            let temp = res
-                .checked_mul(2)
-                .and_then(|res| res.checked_add(bit as u64));
-
-            match temp {
-                Some(temp) => res = temp,
-                None => return Err("Overflow".into()),
-            }
-        }
-
-        Ok(res)
-    }
-}
-
-impl<const N: usize> FromStr for BitArray<N> {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut bit_array = Self { inner: [false; N] };
-        let mut chars = s.chars();
-
-        for item in &mut bit_array.inner {
-            *item = match chars.next() {
-                None => return Err(format!("String is not long enough, {}", s).into()),
-                Some('0') => false,
-                Some('1') => true,
-                Some(char) => return Err(format!("Invalid character: {} in {}", char, s).into()),
-            };
-        }
-
-        if chars.next().is_some() {
-            return Err(format!("String is too long, {}", s).into());
-        }
-
-        Ok(bit_array)
-    }
-}
-
-const PART_ONE_LENGTH: usize = 12;
 
 fn part_one(input_file_reader: &InputFileReader) -> Result<u64, Error> {
-    let bits: Vec<BitArray<PART_ONE_LENGTH>> = input_file_reader.read("part-one.txt")?;
+    let bits: Vec<BinaryU64> = input_file_reader.read("part-one.txt")?;
 
-    let res = bits
+    let gamma: BinaryU64 = bits
         .into_iter()
-        .fold([0; PART_ONE_LENGTH], |mut acc, curr| {
-            for i in 0..acc.len() {
+        .fold([0; WIDTH], |mut acc, curr| {
+            for i in 0..WIDTH {
                 acc[i] += if curr[i] { 1 } else { -1 };
             }
             acc
-        });
+        })
+        .into_iter()
+        .rev()
+        .into();
 
-    let gamma = BitArray::from(res);
-    let epsilon = gamma.invert();
-
-    gamma.try_multiply(epsilon)
+    Ok(gamma * !gamma)
 }
 
-const PART_TWO_LENGTH: usize = 5;
+enum BitCriteria {
+    Oxygen,
+    CO2,
+}
 
-fn part_two(input_file_reader: &InputFileReader) -> Result<(), Error> {
-    let mut bits: Vec<BitArray<PART_TWO_LENGTH>> = input_file_reader.read("test.txt")?;
-
-    for i in 0..PART_TWO_LENGTH {
-        let criteria = bits
-            .iter()
-            .fold(0, |acc, curr| acc + if curr[i] { 1 } else { -1 });
-
-        let criteria = criteria >= 0;
-
-        bits.retain(|bit| bit[i] == criteria);
-        if bits.len() == 1 {
-            break;
+impl BitCriteria {
+    fn is_met(&self, val: i64) -> bool {
+        match self {
+            BitCriteria::Oxygen => val >= 0,
+            BitCriteria::CO2 => !(val >= 0),
         }
     }
+}
 
-    Ok(())
+impl BitCriteria {
+    fn find(&self, mut bits: Vec<BinaryU64>) -> Result<BinaryU64, Error> {
+        // we start with the first bit
+        for i in 0..WIDTH {
+
+            // we find out the distribution of the bits
+            let criteria = bits
+                .iter()
+                .fold(0, |acc, curr| acc + if curr[i] { 1 } else { -1 });
+
+            let criteria = self.is_met(criteria);
+
+            // remove all the bits that don't match the criteria
+            bits.retain(|bit| bit[i] == criteria);
+
+            // we have found the last bit that matches the criteria
+            if bits.len() == 1 {
+                break;
+            }
+        }
+
+        bits.pop().ok_or_else(|| Error::from("No bits left"))
+    }
+}
+
+fn part_two(input_file_reader: &InputFileReader) -> Result<u64, Error> {
+    let bits: Vec<BinaryU64> = input_file_reader.read("part-one.txt")?;
+
+    let oxygen_rating = BitCriteria::Oxygen.find(bits.clone())?;
+    let co2_rating = BitCriteria::CO2.find(bits)?;
+
+    Ok(oxygen_rating * co2_rating)
 }
 
 fn main() -> Result<(), Error> {
@@ -146,35 +167,59 @@ fn main() -> Result<(), Error> {
     println!("Part One result {}", res_one);
 
     let res_two = part_two(&input_file_reader)?;
-    /*println!("Part Two result {}", res_two);*/
+    println!("Part Two result {}", res_two);
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-
     use super::*;
 
-    // todo: add error tests
     #[test]
-    fn bit_array_works() -> Result<(), Error> {
-        // is 22 in decimal
-        let bit_array = BitArray::<5>::from_str("10110")?;
-        assert_eq!(bit_array.inner, [true, false, true, true, false]);
+    fn from_str_works() -> Result<(), Error> {
+        let binary = BinaryU64::from_str("01")?;
+        assert_eq!(binary.0, 1);
 
-        let number: u64 = bit_array.try_into()?;
-        assert_eq!(number, 22);
+        let binary = BinaryU64::from_str("10")?;
+        assert_eq!(binary.0, 2);
+
+        let binary = BinaryU64::from_str("11")?;
+        assert_eq!(binary.0, 3);
 
         Ok(())
     }
 
     #[test]
-    fn bit_array_overflow_works() {
-        // 128 bit max number
-        let bit_array = BitArray::from([1; 128]);
-        let overflow_err = u64::try_from(bit_array);
-        assert!(overflow_err.is_err());
+    fn index_works() -> Result<(), Error> {
+        let binary = BinaryU64::from_str("10")?;
+        assert_eq!(binary[0], false);
+        assert_eq!(binary[1], true);
+
+        Ok(())
+    }
+
+    #[test]
+    fn is_met_works_oxygen() {
+        // value is over 0 so we want to keep the true bits
+        assert!(BitCriteria::Oxygen.is_met(5));
+
+        // there are the same amount of values in the case of oxygen we want to keep the true bit
+        assert!(BitCriteria::Oxygen.is_met(0));
+
+        // value is under 0 so we want to keep the false bits
+        assert!(!BitCriteria::Oxygen.is_met(-5));
+    }
+
+    #[test]
+    fn is_met_works_co2() {
+        // value is over 0 so we want to keep the false bits
+        assert!(!BitCriteria::CO2.is_met(5));
+
+        // there are the same amount of values in the case of co2 we want to keep the false bit
+        assert!(!BitCriteria::CO2.is_met(0));
+
+        // value is under 0 so we want to keep the true bits
+        assert!(BitCriteria::CO2.is_met(-5));
     }
 }
